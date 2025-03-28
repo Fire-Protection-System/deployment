@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  rabbitmq-service:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: always
+
+  forest-simulator-service:
+    build: 
+      context: ./../fire-simulation
+      dockerfile: Dockerfile
+    container_name: fire-simulation
+    ports:
+      - "5000:5000" 
+    volumes:
+      - ./../fire-simulation/:/app  
+
+  fire-backend-service:
+    build: 
+      context: ./../fire-backend
+      dockerfile: Dockerfile
+    container_name: fire-backend
+    ports:
+      - "8080:8080" 
+    volumes:
+      - ./../fire-backend:/app
+    command: ./gradlew bootRun  
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev  
+    restart: always  
+
+  mongo:
+    image: mongo:latest
+    env_file:
+      -  ./../fire-configurations/.env
+    volumes:
+      - ./../fire-configurations/data:/data/db
+      - ./../fire-configurations/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
+    ports:
+      - "27017:27017"
+    restart: always
+
+
+  fire-configuration-service:
+    build:
+      context: ./../fire-configurations
+      dockerfile: Dockerfile
+    ports:
+      - "31415:31415"
+    env_file:
+      - ./../fire-configurations/.env
+    depends_on:
+      - mongo
+    restart: always
+
