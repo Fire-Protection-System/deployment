@@ -1,59 +1,81 @@
 version: '3.8'
 
+networks:
+  fire-network:
+    driver: bridge
+
 services:
   rabbitmq-service:
     image: rabbitmq:management
     container_name: rabbitmq
+    env_file:
+      - common.env
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
     ports:
-      - "5672:5672"
-      - "15672:15672"
-    restart: always
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    networks:
+      - fire-network
+    restart: unless-stopped
 
   forest-simulator-service:
-    build: 
-      context: ./../fire-simulation
+    build:
+      context: fire-simulation
       dockerfile: Dockerfile
     container_name: fire-simulation
+    env_file:
+      - common.env
+      - fire-simulation.env
+    networks:
+      - fire-network
     ports:
-      - "5000:5000" 
-    volumes:
-      - ./../fire-simulation/:/app  
+      - "${SIMULATOR_PORT:-5000}:5000"
+    depends_on:
+      - rabbitmq-service
+    restart: unless-stopped
 
   fire-backend-service:
-    build: 
-      context: ./../fire-backend
+    build:
+      context: fire-backend
       dockerfile: Dockerfile
     container_name: fire-backend
+    env_file:
+      - common.env
+      - fire-backend.env
+    networks:
+      - fire-network
     ports:
-      - "8080:8080" 
-    volumes:
-      - ./../fire-backend:/app
-    command: ./gradlew bootRun  
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev  
-    restart: always  
+      - "${BACKEND_PORT:-8181}:8181"
+    command: ./gradlew bootRun
+    restart: always
+    depends_on:
+      - mongo
+      - rabbitmq-service
 
   mongo:
     image: mongo:latest
-    env_file:
-      -  ./../fire-configurations/.env
+    networks:
+      - fire-network
     volumes:
-      - ./../fire-configurations/data:/data/db
-      - ./../fire-configurations/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
+      - ./fire-configurations/data:/data/db
+      - ./fire-configurations/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
     ports:
-      - "27017:27017"
+      - "${MONGO_PORT:-27017}:27017"
     restart: always
-
 
   fire-configuration-service:
     build:
-      context: ./../fire-configurations
+      context: fire-configurations
       dockerfile: Dockerfile
+    container_name: fire-configuration-service
+    networks:
+      - fire-network
     ports:
-      - "31415:31415"
+      - "${CONFIG_PORT:-31415}:31415"
     env_file:
-      - ./../fire-configurations/.env
+      - fire-configuration.env
     depends_on:
       - mongo
     restart: always
-
