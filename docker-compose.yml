@@ -19,6 +19,16 @@ services:
     networks:
       - fire-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   forest-simulator-service:
     build:
@@ -48,11 +58,21 @@ services:
       - fire-network
     ports:
       - "${BACKEND_PORT:-8181}:8181"
-    command: ./gradlew bootRun
     restart: always
     depends_on:
       - mongo
       - rabbitmq-service
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   mongo:
     image: mongo:latest
@@ -79,3 +99,14 @@ services:
     depends_on:
       - mongo
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:31415/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
