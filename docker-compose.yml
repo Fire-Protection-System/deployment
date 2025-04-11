@@ -9,10 +9,10 @@ services:
     image: rabbitmq:management
     container_name: rabbitmq
     env_file:
-      - common.env
+      - ./environments/common.env
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
@@ -36,8 +36,8 @@ services:
       dockerfile: Dockerfile
     container_name: fire-simulation
     env_file:
-      - common.env
-      - fire-simulation.env
+      - ./environments/common.env
+      - ./environments/fire-simulation.env
     networks:
       - fire-network
     ports:
@@ -50,10 +50,13 @@ services:
     build:
       context: fire-backend
       dockerfile: Dockerfile
+      cache_from:
+      - fire-backend:latest
     container_name: fire-backend
+    image: fire-backend:latest
     env_file:
-      - common.env
-      - fire-backend.env
+      - ./environments/common.env
+      - ./environments/fire-backend.env
     networks:
       - fire-network
     ports:
@@ -95,7 +98,8 @@ services:
     ports:
       - "${CONFIG_PORT:-31415}:31415"
     env_file:
-      - fire-configuration.env
+      - ./environments/common.env
+      - ./environments/fire-configuration.env
     depends_on:
       - mongo
     restart: always
