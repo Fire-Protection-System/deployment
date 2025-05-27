@@ -17,11 +17,7 @@ services:
     ports:
       - "${MONGO_PORT:-27017}:27017"
     restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+
 
   rabbitmq-service:
     image: rabbitmq:management
@@ -44,11 +40,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+
 
   forest-simulator-service:
     build:
@@ -68,11 +60,6 @@ services:
     depends_on:
       - rabbitmq-service
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   fire-backend-service:
     build:
@@ -102,11 +89,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   fire-configuration-service:
     build:
@@ -129,29 +111,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   fire-visualization-service:
     build:
       context: fire-visualization
       dockerfile: Dockerfile
-    container_name: fire-visualization
+    container_name: fire-visualization-service
     ports:
-      - "3000:80"  
+      - "8080:8080"  
     env_file:
       - ./environments/common.env
-      - ./environments/fire-visualization.env
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development 
     networks:
       - fire-network
+    volumes:
+      - ./fire-visualization:/app  
+    command: npm run start 
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
