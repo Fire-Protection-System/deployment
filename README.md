@@ -34,3 +34,4 @@ docker compose -f docker-compose.yml up --build "mongo"
 docker compose -f docker-compose.yml up --build "fire-backend-service" 
 docker compose -f docker-compose.yml up --build "fire-configuration-service"  
 ```
+
