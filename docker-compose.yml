@@ -135,13 +135,16 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  fire-visualization:
+  fire-visualization-service:
     build:
       context: fire-visualization
       dockerfile: Dockerfile
     container_name: fire-visualization
     ports:
       - "3000:80"  
+    env_file:
+      - ./environments/common.env
+      - ./environments/fire-visualization.env
     environment:
       - NODE_ENV=production
     networks:
