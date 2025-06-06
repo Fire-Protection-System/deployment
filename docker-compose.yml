@@ -4,7 +4,61 @@ networks:
   fire-network:
     driver: bridge
 
+volumes:
+  grafana-data:
+    driver: local
+  loki-data:
+    driver: local
+
 services:
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./logging/loki/loki-config.yml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - fire-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    volumes:
+      - ./logging/promtail/promtail-config.yml:/etc/promtail-config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logs:/var/log/fire:ro
+    command: -config.file=/etc/promtail-config.yml
+    networks:
+      - fire-network
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./logging/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./logging/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./logging/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - fire-network
+    depends_on:
+      - loki
+    restart: unless-stopped
+
   mongo:
     image: mongo:latest
     container_name: mongo
@@ -17,6 +71,9 @@ services:
     ports:
       - "${MONGO_PORT:-27017}:27017"
     restart: always
+    labels:
+      - "logging=promtail"
+      - "logging_jobname=mongo"
 
 
   rabbitmq-service:
@@ -40,6 +97,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    labels:
+      - "logging=promtail"
+      - "logging_jobname=rabbitmq"
 
 
   forest-simulator-service:
@@ -60,6 +120,10 @@ services:
     depends_on:
       - rabbitmq-service
     restart: unless-stopped
+    labels:
+      - "logging=promtail"
+      - "logging_jobname=fire-simulation"
+
 
   fire-backend-service:
     build:
@@ -89,6 +153,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "logging=promtail"
+      - "logging_jobname=fire-backend"
 
   fire-configuration-service:
     build:
@@ -102,6 +169,8 @@ services:
     env_file:
       - ./environments/common.env
       - ./environments/fire-configuration.env
+    volumes:
+      - ./logs/fire-configuration:/var/log/fire-configuration
     depends_on:
       - mongo
     restart: always
@@ -111,6 +180,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "logging=promtail"
+      - "logging_jobname=fire-configuration"
 
   fire-visualization-service:
     build:
@@ -129,3 +201,6 @@ services:
       - ./fire-visualization:/app  
     command: npm run start 
     restart: unless-stopped
+    labels:
+      - "logging=promtail"
+      - "logging_jobname=fire-visualization"
