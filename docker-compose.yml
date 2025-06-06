@@ -199,6 +199,7 @@ services:
       - fire-network
     volumes:
       - ./fire-visualization:/app  
+       - /app/node_modules 
     command: npm run start 
     restart: unless-stopped
     labels:
