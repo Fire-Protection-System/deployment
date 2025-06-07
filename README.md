@@ -8,6 +8,7 @@
 │   ├── common.env
 │   ├── fire-backend.env
 │   ├── fire-configuration.env
+│   ├── fire-visualization.env
 │   └── fire-simulation.env
 ├── fire-backend
 ├── fire-configurations
@@ -33,4 +34,6 @@ docker compose -f docker-compose.yml up --build "forest-simulator-service"
 docker compose -f docker-compose.yml up --build "mongo"  
 docker compose -f docker-compose.yml up --build "fire-backend-service" 
 docker compose -f docker-compose.yml up --build "fire-configuration-service"  
+docker compose -f docker-compose.yml up --build "fire-visualization-service"  
 ```
+
