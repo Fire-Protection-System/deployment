@@ -1,83 +1,37 @@
 version: '3.8'
 
-networks:
-  fire-network:
-    driver: bridge
-
 volumes:
+  mongo-data:
+    driver: local
   grafana-data:
     driver: local
   loki-data:
     driver: local
+  sonar-data: {}
+  sonar-extensions: {}
+  sonar-logs: {}
+  sonar-postgres: {}
 
 services:
-
-  loki:
-    image: grafana/loki:2.9.0
-    container_name: loki
-    ports:
-      - "3100:3100"
-    volumes:
-      - loki-data:/loki
-      - ./logging/loki/loki-config.yml:/etc/loki/local-config.yaml
-    command: -config.file=/etc/loki/local-config.yaml
-    networks:
-      - fire-network
-    restart: unless-stopped
-
-  promtail:
-    image: grafana/promtail:2.9.0
-    container_name: promtail
-    volumes:
-      - ./logging/promtail/promtail-config.yml:/etc/promtail-config.yml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./logs:/var/log/fire:ro
-    command: -config.file=/etc/promtail-config.yml
-    networks:
-      - fire-network
-    depends_on:
-      - loki
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.2.0
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./logging/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-      - ./logging/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
-      - ./logging/grafana/dashboards:/var/lib/grafana/dashboards
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    networks:
-      - fire-network
-    depends_on:
-      - loki
-    restart: unless-stopped
-
   mongo:
-    image: mongo:latest
+    image: mongo:6.0
     container_name: mongo
-    networks:
-      - fire-network
     volumes:
-      - ./fire-configurations/data:/data/db
-      - ./fire-configurations/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
-      - ./logs/mongo:/var/log/mongo
+      - mongo-data:/data/db
     ports:
       - "${MONGO_PORT:-27017}:27017"
     restart: always
-    labels:
-      - "logging=promtail"
-      - "logging_jobname=mongo"
-
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      MONGO_INITDB_DATABASE: configurations
+    network_mode: host
 
   rabbitmq-service:
-    image: rabbitmq:management
+    image: rabbitmq:3.11-management
     container_name: rabbitmq
     env_file:
       - ./environments/common.env
@@ -87,8 +41,6 @@ services:
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
-    networks:
-      - fire-network
     restart: unless-stopped
     depends_on:
       - mongo
@@ -97,33 +49,23 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    labels:
-      - "logging=promtail"
-      - "logging_jobname=rabbitmq"
-
+    network_mode: host
 
   forest-simulator-service:
     build:
       context: fire-simulation
       dockerfile: Dockerfile
+      network: host
     container_name: fire-simulation
-    volumes:
-      - ./fire-simulation:/code
-      - ./logs/fire-simulation:/var/log/fire-simulation  
     env_file:
       - ./environments/common.env
       - ./environments/fire-simulation.env
-    networks:
-      - fire-network
     ports:
       - "${SIMULATOR_PORT:-5000}:5000"
     depends_on:
       - rabbitmq-service
     restart: unless-stopped
-    labels:
-      - "logging=promtail"
-      - "logging_jobname=fire-simulation"
-
+    network_mode: host
 
   fire-backend-service:
     build:
@@ -131,16 +73,12 @@ services:
       dockerfile: Dockerfile
       cache_from:
         - fire-backend:latest
+      network: host
     container_name: fire-backend
     image: fire-backend:latest
     env_file:
       - ./environments/common.env
       - ./environments/fire-backend.env
-    networks:
-      - fire-network
-    volumes:
-      - ./fire-backend:/code
-      - ./logs/fire-backend:/var/log/fire-backend 
     ports:
       - "${BACKEND_PORT:-8181}:8181"
     restart: always
@@ -153,24 +91,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    labels:
-      - "logging=promtail"
-      - "logging_jobname=fire-backend"
+    network_mode: host
 
   fire-configuration-service:
     build:
       context: fire-configurations
       dockerfile: Dockerfile
+      network: host
     container_name: fire-configuration-service
-    networks:
-      - fire-network
     ports:
       - "${CONFIG_PORT:-31415}:31415"
     env_file:
       - ./environments/common.env
       - ./environments/fire-configuration.env
-    volumes:
-      - ./logs/fire-configuration:/var/log/fire-configuration
+    environment:
+      - MONGO_CONNECTION=mongodb://127.0.0.1:27017/configurations
     depends_on:
       - mongo
     restart: always
@@ -180,28 +115,52 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    labels:
-      - "logging=promtail"
-      - "logging_jobname=fire-configuration"
+    network_mode: host
 
   fire-visualization-service:
     build:
       context: fire-visualization
       dockerfile: Dockerfile
+      network: host
     container_name: fire-visualization-service
     ports:
-      - "8080:8080"  
+      - "8080:8080"
     env_file:
       - ./environments/common.env
     environment:
-      - NODE_ENV=development 
-    networks:
-      - fire-network
-    volumes:
-      - ./fire-visualization:/app  
-       - /app/node_modules 
-    command: npm run start 
+      - NODE_ENV=development
     restart: unless-stopped
-    labels:
-      - "logging=promtail"
-      - "logging_jobname=fire-visualization"
+    network_mode: host
+
+  postgres-sonar:
+    image: postgres:15
+    container_name: postgres-sonar
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+      PGPORT: 5555
+    volumes:
+      - sonar-postgres:/var/lib/postgresql/data
+    ports:
+      - "5555:5555"
+
+  sonarqube:
+    image: sonarqube:10-community
+    container_name: sonarqube
+    depends_on:
+      - postgres-sonar
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://127.0.0.1:5555/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    ports:
+      - "9000:9000"  
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-extensions:/opt/sonarqube/extensions
+      - sonar-logs:/opt/sonarqube/logs
