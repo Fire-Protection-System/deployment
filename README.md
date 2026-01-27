@@ -30,13 +30,7 @@ The system is built using a microservices architecture with the following compon
 ```
 ### Environment and Configuration
 
-To run the project fully, you'll need to create a `.env` file in the `fire-visualization` directory with your Google Maps API credentials (`https://console.cloud.google.com/`)
-
-
-```sh
-GOOGLE_API_KEY=""
-GOOGLE_MAP_ID_MAIN_MAP=""
-```
+The frontend now uses OpenStreetMap tiles via MapLibre and does not require Google Maps API keys. If you want to use a custom tile provider, add appropriate configuration in `deployment/fire-visualization/.env` or provide tile URL via environment variables.
 
 ### Running services 
 
